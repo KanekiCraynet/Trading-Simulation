@@ -8,7 +8,64 @@
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    /* Basic Layout */
+    /* ============================
+       Styles for Enhanced Features
+    ============================ */
+    .statistics-panel {
+      width: 90%;
+      max-width: 1200px;
+      background-color: #26263d;
+      border: 1px solid #3e3e5c;
+      border-radius: 8px;
+      padding: 10px;
+      margin-top: 10px;
+    }
+    .statistics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 10px;
+      padding: 10px;
+    }
+    .stat-card {
+      background-color: #1e1e2f;
+      padding: 10px;
+      border-radius: 5px;
+      text-align: center;
+    }
+    .stat-label {
+      color: #76c7c0;
+      font-size: 0.9rem;
+      margin-bottom: 5px;
+    }
+    .stat-value {
+      color: #e1e1e6;
+      font-size: 1.1rem;
+      font-weight: bold;
+    }
+    .history-panel {
+      width: 90%;
+      max-width: 1200px;
+      background-color: #26263d;
+      border: 1px solid #3e3e5c;
+      border-radius: 8px;
+      padding: 10px;
+      margin-top: 10px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .trade-history-item {
+      padding: 5px;
+      border-bottom: 1px solid #3e3e5c;
+      display: flex;
+      justify-content: space-between;
+    }
+    .trade-time {
+      color: #76c7c0;
+      font-size: 0.9rem;
+    }
+    /* ============================
+       Basic Layout
+    ============================ */
     body {
       font-family: 'Roboto', sans-serif;
       margin: 0;
@@ -197,6 +254,21 @@
     .simulation-settings input[type="range"] {
       vertical-align: middle;
     }
+    .simulation-settings button {
+      background-color: #3e3e5c;
+      color: #e1e1e6;
+      border: none;
+      padding: 5px 10px;
+      font-size: 1rem;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+      margin-left: 10px;
+    }
+    .simulation-settings button:hover {
+      background-color: #76c7c0;
+      color: #1e1e2f;
+    }
     /* Log Panel */
     .log-panel {
       width: 100%;
@@ -224,6 +296,37 @@
   </style>
 </head>
 <body>
+  <!-- Statistics Panel -->
+  <div class="statistics-panel">
+    <div class="statistics-grid">
+      <div class="stat-card">
+        <div class="stat-label">Win Rate</div>
+        <div class="stat-value" id="win-rate">0%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Average P/L</div>
+        <div class="stat-value" id="avg-pl">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Sharpe Ratio</div>
+        <div class="stat-value" id="sharpe-ratio">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Max Drawdown</div>
+        <div class="stat-value" id="max-drawdown">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Trades</div>
+        <div class="stat-value" id="total-trades">0</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Trade History Panel -->
+  <div class="history-panel" id="trade-history">
+    <!-- Trade history items will be dynamically added here -->
+  </div>
+
   <header>
     <h1>Simulation Market-Making Game</h1>
   </header>
@@ -311,8 +414,13 @@
     <!-- Simulation Settings -->
     <div class="simulation-settings">
       <label for="sim-speed">Cycle Duration (ms):</label>
-      <input type="range" id="sim-speed" min="500" max="5000" step="100" value="10000">
+      <input type="range" id="sim-speed" min="500" max="5000" step="100" value="1000">
       <span id="sim-speed-value">1000</span> ms
+      &nbsp;|&nbsp;
+      <label for="market-volatility">Market Volatility:</label>
+      <input type="range" id="market-volatility" min="1" max="10" step="1" value="5">
+      <span id="market-volatility-value">5</span>
+      <button id="pause-simulation">Pause Simulation</button>
       <button id="reset-simulation">Reset Simulation</button>
     </div>
 
@@ -324,10 +432,136 @@
   </div>
 
   <script>
+    // ===============================
+    // TradingSimulation Class (for stats)
+    // ===============================
+    class TradingSimulation {
+      constructor() {
+        this.trades = [];
+        this.plHistory = [];
+        this.statistics = {
+          winRate: 0,
+          avgPL: 0,
+          sharpeRatio: 0,
+          maxDrawdown: 0
+        };
+        this.initializeEventListeners();
+      }
+
+      initializeEventListeners() {
+        const debouncedUpdate = this.debounce(this.updateMarket.bind(this), 250);
+        document.getElementById("midpoint").addEventListener("input", debouncedUpdate);
+        document.getElementById("spread").addEventListener("input", debouncedUpdate);
+      }
+
+      debounce(func, wait) {
+        let timeout;
+        return (...args) => {
+          clearTimeout(timeout);
+          timeout = setTimeout(() => func(...args), wait);
+        };
+      }
+
+      updateMarket() {
+        // Placeholder: Bisa tambahkan logika real-time market update di sini.
+      }
+
+      addTradeToHistory(trade) {
+        this.trades.push(trade);
+        this.plHistory.push(trade.pl);
+        const historyContainer = document.getElementById("trade-history");
+        const tradeItem = document.createElement("div");
+        tradeItem.className = "trade-history-item";
+        tradeItem.innerHTML = `<span>${trade.action} ${trade.quantity} @ ${trade.price} (P/L: ${trade.pl.toFixed(2)})</span>
+                               <span class="trade-time">${new Date().toLocaleTimeString()}</span>`;
+        historyContainer.insertBefore(tradeItem, historyContainer.firstChild);
+        // Update total trades stat
+        document.getElementById("total-trades").textContent = this.trades.length;
+        this.updateStatistics();
+      }
+
+      updateStatistics() {
+        const winningTrades = this.trades.filter(trade => trade.pl > 0).length;
+        this.statistics.winRate = this.trades.length ? (winningTrades / this.trades.length) * 100 : 0;
+        this.statistics.avgPL = this.plHistory.length ? this.plHistory.reduce((a, b) => a + b, 0) / this.plHistory.length : 0;
+        const plStdDev = this.plHistory.length
+          ? Math.sqrt(this.plHistory.reduce((sum, pl) => sum + Math.pow(pl - this.statistics.avgPL, 2), 0) / this.plHistory.length)
+          : 0;
+        this.statistics.sharpeRatio = plStdDev ? this.statistics.avgPL / plStdDev : 0;
+        let peak = -Infinity;
+        let maxDrawdown = 0;
+        let cumulativePL = 0;
+        this.plHistory.forEach(pl => {
+          cumulativePL += pl;
+          peak = Math.max(peak, cumulativePL);
+          maxDrawdown = Math.min(maxDrawdown, cumulativePL - peak);
+        });
+        this.statistics.maxDrawdown = maxDrawdown;
+        this.updateStatisticsDisplay();
+      }
+
+      updateStatisticsDisplay() {
+        document.getElementById("win-rate").textContent = `${this.statistics.winRate.toFixed(1)}%`;
+        document.getElementById("avg-pl").textContent = this.statistics.avgPL.toFixed(2);
+        document.getElementById("sharpe-ratio").textContent = this.statistics.sharpeRatio.toFixed(2);
+        document.getElementById("max-drawdown").textContent = this.statistics.maxDrawdown.toFixed(2);
+      }
+    }
+
+    // ===============================
+    // Global Variables & Helpers
+    // ===============================
+    const simulation = new TradingSimulation();
+    let isPaused = false;
+    let animationRequestId = null;
+    let cumulativePL = 0;
+    let simCycleDuration = parseInt(document.getElementById("sim-speed").value); // in ms
+
+    // Helper: Clamp value
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+    // ===============================
+    // Chart.js Initialization
+    // ===============================
+    const ctx = document.getElementById("pl-chart").getContext("2d");
+    const plData = {
+      labels: [],
+      datasets: [{
+        label: "Cumulative P/L",
+        data: [],
+        borderColor: "#76c7c0",
+        backgroundColor: "rgba(118, 199, 192, 0.2)",
+        borderWidth: 2,
+        tension: 0.1,
+      }]
+    };
+    const plChart = new Chart(ctx, {
+      type: "line",
+      data: plData,
+      options: {
+        scales: {
+          x: {
+            title: { display: true, text: "Trades", color: "#e1e1e6" },
+            ticks: { color: "#e1e1e6" }
+          },
+          y: {
+            title: { display: true, text: "Cumulative P/L", color: "#e1e1e6" },
+            ticks: { color: "#e1e1e6" }
+          }
+        },
+        plugins: {
+          legend: {
+            display: true,
+            labels: { color: "#e1e1e6" }
+          }
+        }
+      }
+    });
+
+    // ===============================
+    // DOM Cached Elements
+    // ===============================
     document.addEventListener("DOMContentLoaded", () => {
-      /* ===========
-         Cached DOM elements
-      ============= */
       const marketMakerBtn = document.getElementById("market-maker-btn");
       const marketParticipantBtn = document.getElementById("market-participant-btn");
       const gameContainer = document.getElementById("game-container");
@@ -347,68 +581,31 @@
       const spreadInput = document.getElementById("spread");
       const simSpeedSlider = document.getElementById("sim-speed");
       const simSpeedValue = document.getElementById("sim-speed-value");
+      const marketVolSlider = document.getElementById("market-volatility");
+      const marketVolValue = document.getElementById("market-volatility-value");
       const resetSimBtn = document.getElementById("reset-simulation");
+      const pauseSimBtn = document.getElementById("pause-simulation");
       const logList = document.getElementById("log-list");
 
-      /* ===========
-         Global variables / state
-      ============= */
       let action = null;
       let lockedPrice = null;
       let lockedQty = null;
       let storedDiceValues = [];
       let storedBid = null;
       let storedOffer = null;
-      let cumulativePL = 0;
-      let simCycleDuration = parseInt(simSpeedSlider.value); // in ms
 
-      // Chart.js initialization for cumulative P/L chart
-      const ctx = document.getElementById("pl-chart").getContext("2d");
-      const plData = {
-        labels: [],
-        datasets: [{
-          label: "Cumulative P/L",
-          data: [],
-          borderColor: "#76c7c0",
-          backgroundColor: "rgba(118, 199, 192, 0.2)",
-          borderWidth: 2,
-          tension: 0.1,
-        }]
-      };
-      const plChart = new Chart(ctx, {
-        type: "line",
-        data: plData,
-        options: {
-          scales: {
-            x: {
-              title: { display: true, text: "Trades", color: "#e1e1e6" },
-              ticks: { color: "#e1e1e6" }
-            },
-            y: {
-              title: { display: true, text: "Cumulative P/L", color: "#e1e1e6" },
-              ticks: { color: "#e1e1e6" }
-            }
-          },
-          plugins: {
-            legend: {
-              display: true,
-              labels: { color: "#e1e1e6" }
-            }
-          }
-        }
-      });
-
-      /* ===========
-         Utility Functions
-      ============= */
-      // Logging to the simulation log panel
+      // ===============================
+      // Logging Utility
+      // ===============================
       function logEvent(message) {
         const li = document.createElement("li");
         li.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
         logList.prepend(li);
       }
 
-      // Update cumulative P/L chart
+      // ===============================
+      // Update Cumulative P/L Chart
+      // ===============================
       function updatePLChart(pl) {
         cumulativePL += pl;
         const tradeCount = plData.labels.length + 1;
@@ -417,7 +614,9 @@
         plChart.update();
       }
 
-      // Reset purchase state (for participants)
+      // ===============================
+      // Reset Participant Order State
+      // ===============================
       function resetPurchaseState() {
         buyBtn.disabled = false;
         sellBtn.disabled = false;
@@ -428,7 +627,9 @@
         if (purchaseInfo) purchaseInfo.remove();
       }
 
-      // Update dice values – ensuring at least one "H"
+      // ===============================
+      // Update Dice Values (minimal satu H)
+      // ===============================
       function updateDiceValues() {
         const diceEls = [
           document.getElementById("dice-1-value"),
@@ -445,28 +646,52 @@
         storedDiceValues = diceValues;
       }
 
-      // Update bid/offer for participants (using random logic)
+      // ===============================
+      // Update Bid/Offer for Participants (tergantung volatilitas)
+      // ===============================
       function updateBidOffer() {
-        const bid = Math.max(3, Math.min(18, Math.ceil(Math.random() * 16 + 2)));
-        const offer = Math.min(18, bid + 2 + Math.floor(Math.random() * 2));
+        const volatility = parseFloat(marketVolSlider.value);
+        // Contoh: basis bid dengan sedikit adjustment berdasarkan volatilitas (default 5 = netral)
+        const baseBid = Math.ceil(Math.random() * 16 + 2);
+        const adjustment = Math.floor((volatility - 5) * Math.random());
+        const bid = clamp(baseBid + adjustment, 3, 18);
+        const offer = clamp(bid + 2 + Math.floor(Math.random() * 2), 3, 18);
         bidPrice.textContent = bid;
         offerPrice.textContent = offer;
         storedBid = bid;
         storedOffer = offer;
       }
 
-      // Update realization and calculate P/L based on dice outcomes
+      // ===============================
+      // Simulate News Event (10% chance) & Return multiplier
+      // ===============================
+      function simulateNewsEvent() {
+        if (Math.random() < 0.1) {
+          // Pilih multiplier secara acak antara bull (1.5) atau bear (0.7)
+          const multiplier = Math.random() < 0.5 ? 1.5 : 0.7;
+          const newsText = multiplier > 1
+            ? "Breaking News: Bullish surge! Market optimism abounds."
+            : "Breaking News: Bearish shock! Caution in the air.";
+          logEvent(newsText);
+          return multiplier;
+        }
+        return 1;
+      }
+
+      // ===============================
+      // Update Realization & Calculate P/L
+      // ===============================
       function updateRealization() {
+        let multiplier = simulateNewsEvent(); // News event multiplier (default 1)
         const realizationValue = storedDiceValues.reduce((acc, value) => {
           return acc + (value === "H" ? Math.ceil(Math.random() * 6) : parseFloat(value));
-        }, 0);
-        realizationEl.textContent = `Realization: ${realizationValue}`;
+        }, 0) * multiplier;
+        realizationEl.textContent = `Realization: ${realizationValue.toFixed(2)}`;
         realizationEl.classList.remove("hidden");
 
         const isMaker = marketMakerBtn.classList.contains("active");
         const isParticipant = marketParticipantBtn.classList.contains("active");
 
-        // If market maker, use stored market result from submitMarket
         if (isMaker && window.marketResult) {
           const { buyers, sellers, bid, offer, spread } = window.marketResult;
           const netQty = sellers - buyers;
@@ -477,11 +702,11 @@
           plDisplay.textContent = `P/L: ${totalPL.toFixed(2)} (Spread: ${spreadCollected.toFixed(2)}, Realized: ${realizedPL.toFixed(2)})`;
           plDisplay.classList.remove("hidden");
           updatePLChart(totalPL);
+          simulation.addTradeToHistory({ action: "MAKER", quantity: matchedQty, price: bid, pl: totalPL });
           window.marketResult = null;
           logEvent(`Market Maker trade executed. Total P/L: ${totalPL.toFixed(2)}`);
         }
 
-        // If participant, calculate based on lockedPrice and action
         if (isParticipant && action && lockedPrice !== null && lockedQty !== null) {
           const pl = action === "buy"
             ? (realizationValue - lockedPrice) * lockedQty
@@ -489,20 +714,27 @@
           plDisplay.textContent = `P/L: ${pl.toFixed(2)}`;
           plDisplay.classList.remove("hidden");
           updatePLChart(pl);
+          simulation.addTradeToHistory({ action: action.toUpperCase(), quantity: lockedQty, price: lockedPrice, pl });
           logEvent(`Market Participant trade executed. P/L: ${pl.toFixed(2)}`);
           resetPurchaseState();
         }
       }
 
-      // Animate progress bar using requestAnimationFrame
+      // ===============================
+      // Animate Progress Bar & Cycle Simulation
+      // ===============================
       function animateProgressBar(duration) {
         const startTime = performance.now();
         function step(timestamp) {
+          if (isPaused) {
+            cancelAnimationFrame(animationRequestId);
+            return;
+          }
           const elapsed = timestamp - startTime;
           const progress = Math.max(100 - (elapsed / duration) * 100, 0);
           progressBar.style.width = progress + "%";
           if (elapsed < duration) {
-            requestAnimationFrame(step);
+            animationRequestId = requestAnimationFrame(step);
           } else {
             updateRealization();
             updateDiceValues();
@@ -512,10 +744,12 @@
             animateProgressBar(simCycleDuration);
           }
         }
-        requestAnimationFrame(step);
+        animationRequestId = requestAnimationFrame(step);
       }
 
-      // Toggle role display (maker vs. participant)
+      // ===============================
+      // Toggle Role Display (Maker vs. Participant)
+      // ===============================
       function setRole(role) {
         gameContainer.style.display = "flex";
         if (role === "maker") {
@@ -534,9 +768,9 @@
         }
       }
 
-      /* ===========
-         Event Listeners
-      ============= */
+      // ===============================
+      // Event Listeners
+      // ===============================
       marketMakerBtn.addEventListener("click", () => {
         setRole("maker");
         logEvent("Role set to Market Maker");
@@ -584,11 +818,10 @@
           alert("Please provide valid midpoint and spread values.");
           return;
         }
-        const bid = Math.max(3, midpoint - spread / 2);
-        const offer = Math.min(18, midpoint + spread / 2);
+        const bid = clamp(midpoint - spread / 2, 3, 18);
+        const offer = clamp(midpoint + spread / 2, 3, 18);
         bidPrice.textContent = bid.toFixed(2);
         offerPrice.textContent = offer.toFixed(2);
-        // Calculate expected outcome using hidden dice (H assumed 3.5)
         const expectedOutcome = storedDiceValues.reduce((acc, val) =>
           acc + (val === "H" ? 3.5 : parseFloat(val)), 0);
         const edgeBuy = Math.max(0, Math.min(1, (offer - expectedOutcome) / spread));
@@ -620,6 +853,26 @@
         logEvent(`Simulation speed set to ${simCycleDuration} ms per cycle`);
       });
 
+      // Market volatility slider update
+      marketVolSlider.addEventListener("input", () => {
+        marketVolValue.textContent = marketVolSlider.value;
+        logEvent(`Market volatility set to ${marketVolSlider.value}`);
+      });
+
+      // Pause/Resume Simulation Button
+      pauseSimBtn.addEventListener("click", () => {
+        if (!isPaused) {
+          isPaused = true;
+          pauseSimBtn.textContent = "Resume Simulation";
+          logEvent("Simulation paused");
+        } else {
+          isPaused = false;
+          pauseSimBtn.textContent = "Pause Simulation";
+          logEvent("Simulation resumed");
+          animateProgressBar(simCycleDuration);
+        }
+      });
+
       // Reset Simulation Button
       resetSimBtn.addEventListener("click", () => {
         cumulativePL = 0;
@@ -630,11 +883,11 @@
         logEvent("Simulation reset");
       });
 
-      /* ===========
-         Initialization Functions
-      ============= */
+      // ===============================
+      // Initialization Functions
+      // ===============================
       function initializeGame() {
-        // Set dice to a default state
+        // Set dice to default
         const diceEls = [
           document.getElementById("dice-1-value"),
           document.getElementById("dice-2-value"),
@@ -645,7 +898,7 @@
         updateBidOffer();
       }
 
-      // Start the simulation cycle
+      // Start simulation
       initializeGame();
       animateProgressBar(simCycleDuration);
       logEvent("Simulation started");
